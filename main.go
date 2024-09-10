@@ -11,20 +11,37 @@ import (
 )
 
 func main() {
-	InitScreen()
-	InitGameState()
-	inputchan := InitUserInput()
-	ReadInput(inputchan)
-	for !isGameOver {
-		ProcessInputs()
-		UpdateState()
-		DrawState()
+	for {
+		InitScreen()
+		InitGameState()
+		inputchan := InitUserInput()
+		ReadInput(inputchan)
 
-		time.Sleep(75 * time.Millisecond)
+		for !isGameOver {
+			//ClearScreen()
+			ProcessInputs()
+			UpdateState()
+			DrawState()
+
+			time.Sleep(75 * time.Millisecond)
+		}
+
+		DrawGameOver()
+
+		// Wait for the user input after the game is over
+		for isGameOver && !restart {
+			ProcessInputs()
+			time.Sleep(75 * time.Millisecond)
+		}
+
+		// Clean resources
+		screen.Fini()
+
+		if !restart {
+			break
+		}
 	}
-
-	DrawGameOver()
-	time.Sleep(5 * time.Second)
+	// Clean resources
 	screen.Fini()
 }
 
@@ -79,6 +96,8 @@ func SpawnBullet() {
 func MoveGameObjects(objs []*GameObject) {
 	for _, obj := range objs {
 		for _, p := range obj.points {
+			copy := *p
+			pointsToClear = append(pointsToClear, &copy)
 			p.col += obj.velCol
 			p.row += obj.velRow
 		}
@@ -130,15 +149,47 @@ func AreObjectsCollinding(obj1, obj2 *GameObject, radius int) bool {
 	return false
 }
 
+func ClearScreen() {
+
+	for _, p := range pointsToClear {
+		DrawInsideGameFrame(p.row, p.col, 1, 1, ' ')
+	}
+	pointsToClear = []*Point{}
+
+	// for _, z := range zombies {
+	// 	for _, p := range z.points {
+	// 		DrawInsideGameFrame(p.row, p.col, 1, 1, ' ')
+	// 	}
+	// }
+
+	// for _, b := range bullets {
+	// 	for _, p := range b.points {
+	// 		DrawInsideGameFrame(p.row, p.col, 1, 1, ' ')
+	// 	}
+	// }
+
+	// for _, p := range player.points {
+	// 	DrawInsideGameFrame(p.row, p.col, 1, 1, ' ')
+	// }
+}
+
+func DrawScore() {
+	row, col := GetGameFrameTopLeft()
+	PrintString(row-2, col, fmt.Sprintf("Score: %d", score))
+}
+
 func DrawState() {
 	if isGamePaused {
 		return
 	}
 
-	screen.Clear()
-	PrintString(0, 0, debugLog)
+	//screen.Clear() // TODO - Improve it to clean only cells that needed to be cleanned
+	ClearScreen()
+	DrawScore()
 	DrawGameFrame()
 	DrawGameObjects(append(append([]*GameObject{player}, zombies...), bullets...))
+
+	PrintString(0, 0, debugLog)
 	screen.Show()
 }
 
@@ -251,12 +302,13 @@ func InitGameState() {
 			{row: 6, col: 2, symbol: '-'},
 			{row: 6, col: 3, symbol: '-'},
 			{row: 6, col: 4, symbol: '-'},
-			//{row: 7, col: 2, symbol: '/'},
 			{row: 8, col: 0, symbol: '/'},
 			{row: 8, col: 2, symbol: '\\'},
 		},
 	}
+	zombies = nil
 	score = 0
+	restart = false
 	isGameOver = false
 	inputs = make([]string, 0, 100)
 }
@@ -279,7 +331,7 @@ func InitUserInput() chan string {
 func ReadInput(inputChan chan string) {
 	go func() {
 		for {
-			key := <-inputChan // Wait until has something to read. It literally locks while waiting because it is a non-buffered channel
+			key := <-inputChan // Wait until has something to read. It locks while waiting because it is a non-buffered channel
 			mu.Lock()
 			inputs = append(inputs, key)
 			mu.Unlock()
@@ -302,9 +354,11 @@ func ProcessInputs() {
 }
 
 func HandleUserInput(key string) {
-	if key == "Rune[q]" || key == " " || key == "Esc" {
+	if key == "Rune[q]" || key == "Esc" {
 		screen.Fini()
 		os.Exit(0)
+	} else if key == "Enter" && isGameOver {
+		restart = true
 	} else if key == "Rune[p]" {
 		isGamePaused = !isGamePaused
 	} else if (key == "Rune[w]" || key == "Up") && !IsObjectHittingWall(player, -1, 0) {
@@ -323,6 +377,8 @@ func HandleUserInput(key string) {
 
 func MovePlayer(velRow, velCol int) {
 	for _, p := range player.points {
+		copy := *p
+		pointsToClear = append(pointsToClear, &copy)
 		p.col += velCol
 		p.row += velRow
 	}

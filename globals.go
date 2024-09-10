@@ -16,11 +16,11 @@ var screen tcell.Screen
 var player *GameObject
 var zombies []*GameObject
 var bullets []*GameObject
-
-// var pointsToClear []*Point
+var pointsToClear []*Point
 var isGamePaused bool
 var isGameOver bool
 var debugLog string
 var score int
 var inputs []string
 var mu sync.Mutex
+var restart bool
